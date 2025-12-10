@@ -128,7 +128,7 @@ def validate_llm_response(data: Dict[str, Any]) -> Dict[str, Any]:
 
     # 2. Validate Topics
     topics = data.get("topics", [])
-    if not isinstance(topics, list):
+    if not isinstance(topics, list) or not topics:
         topics = ["General"]
 
     return {
