@@ -27,7 +27,7 @@ Aegis solves the **"Intelligence vs. Speed"** trade-off using a **Race Condition
 
 ### Prerequisites
 - Python 3.11+
-- `make` (or `run.bat` for Windows)
+- `make` (or `aegis.bat` for Windows)
 
 ### 1. Installation
 The project includes a `Makefile` for single-command setup.
