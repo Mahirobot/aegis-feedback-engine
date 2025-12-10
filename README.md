@@ -1,8 +1,3 @@
-Certainly! Below is a **clean, copy-paste ready `README.md`** generated directly from your provided documentation, formatted in proper Markdown with clear sections, code blocks, and structure—exactly as you’d submit it in your repo.
-
----
-
-```markdown
 # 🛡 Aegis: Resilient Feedback Engine
 
 > **Status**: Production Ready | **Latency**: <500ms Guaranteed | **Coverage**: 100%  
@@ -119,7 +114,11 @@ We prioritize testing **failure modes** over happy paths.
 # Runs the full test suite
 make test
 ```
-
+Or
+```bash
+# Runs the full test suite
+pytest tests
+```
 ### Key Test Scenarios:
 1. **Concurrency**: Simulates 50 simultaneous writes to ensure the SQLite lock holds.
 2. **Race Condition**: Mocks AI timeout to verify fallback to VADER without crash.
@@ -145,4 +144,3 @@ docker run -p 8000:8000 aegis-engine
 - **LLM Determinism**: While we validate JSON structure, LLMs can occasionally hallucinate categories. The `reconcile_data_worker` acts as a second pass to audit these.
 
 ---
-```
