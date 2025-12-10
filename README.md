@@ -4,7 +4,7 @@
 > A high-velocity customer feedback analysis system that classifies sentiment, detects topics, stores results, and alerts on urgent issues—without ever breaking its latency promise.
 
 ---
-
+### [Video demo](https://drive.google.com/file/d/183LaDFdJbfs9m5zuy1Et_fmHlPrrF8ho/view?usp=sharing)
 ## 1. Design Rationale
 
 ### Clarifying Questions Asked
