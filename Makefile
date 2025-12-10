@@ -39,3 +39,4 @@ clean:
 reset-db:
 	@echo "Wiping Database..."
 	@rm -f feedback.db
+	@rm -f test_feedback.db
