@@ -40,10 +40,10 @@ make install
 **For Windows**:
 ```bat
 # Use the batch script
-./run.bat
+# Assuming you have python 3.11+ installed in your environment
+./aegis.bat
 
 # Optional: Delete existing DB to start fresh
-del feedback.db
 ```
 
 ### 2. Configuration
@@ -51,12 +51,9 @@ Create a `.env` file in the root directory. **No API keys needed**—system auto
 
 ```env
 # Optional: If missing, system degrades to VADER/Mock automatically
-OPENAI_API_KEY=sk-...
-GROQ_API_KEY=gsk_...
-
-# System Constraints
-AI_TIMEOUT_SECONDS=0.5
-DATABASE_URL=sqlite:///feedback.db
+GROQ_API_KEY=...
+OPENAI_API_KEY=...
+DISCORD_WEBHOOK_URL=...
 ```
 
 ### 3. Running the App

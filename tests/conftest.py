@@ -5,7 +5,6 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlmodel import Session, SQLModel
 
-# --- CRITICAL SETUP ---
 # We set the Environment Variable BEFORE importing the app.
 # This ensures that when 'app.config' and 'app.database' are imported,
 # they initialize the engine with the TEST URL, not the PROD URL.

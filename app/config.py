@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     # The "Race Condition" Timeout.
     # If AI takes longer than this, we switch to Fallback.
-    AI_TIMEOUT_SECONDS: float = 0.5
+    AI_TIMEOUT_SECONDS: float = 0.4
 
     DISCORD_WEBHOOK_URL: Optional[str] = None
 
