@@ -89,7 +89,7 @@ make run
 | **Alerts go to internal team (via Discord)** | MVP for real-time notification | Low – hook replaceable |
 | **Resolved feedback is marked, not deleted** | Supports audit trail; aligns with ticketing norms | Low – deletion can be added later |
 
-For full design context, see the [Project Questions & Documentation]([https://docs.google.com/document/d/1e6vvqli-2bZU3KvvohKberdTTHzmPxHCZRZEfmkVEdc/edit?usp=sharing](https://docs.google.com/document/d/1e6vvqli-2bZU3KvvohKberdTTHzmPxHCZRZEfmkVEdc/edit?usp=sharing))
+For full design context, see the [Project Questions & Documentation](https://docs.google.com/document/d/1e6vvqli-2bZU3KvvohKberdTTHzmPxHCZRZEfmkVEdc/edit?usp=sharing])
 ---
 
 ## 4. Technical Decisions
