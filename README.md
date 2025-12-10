@@ -29,7 +29,7 @@ Since I was asked to make my own judgements about scope and answers, I have ment
    → *Selected*: Meets latency, reliability, and routing requirements.
 
 ### Why This Approach?
-- **Business alignment**: Clients get **immediate, actionable routing**—not a job ID.
+- **Business alignment**: Clients get **immediate, actionable routing**, not a job ID.
 - **Constraint navigation**: Guarantees <500ms even during LLM outages.
 - **Cost control**: Deduplication + fallback = $0 cost for repeat/spam feedback.
 - **Resilience**: System degrades gracefully; never blocks.
