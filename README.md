@@ -52,11 +52,11 @@ Since I was asked to make my own judgements about scope and answers, I have ment
 
 ### Installation
 ```bash
+# (Windows) Use batch script - Preferred - 1 command (creates venv and launches app)
+./aegis.bat
+
 # Install dependencies
 make install
-
-# (Windows) Use batch script
-./aegis.bat
 ```
 
 ### Configuration
