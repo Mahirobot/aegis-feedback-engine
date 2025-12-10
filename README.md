@@ -15,7 +15,7 @@ I asked 18 targeted questions across 5 categories to resolve ambiguity:
 - **Data lifecycle**: Retention policy? Query patterns? PII handling?
 - **Observability**: How to monitor accuracy? Expect adversarial inputs?
 
-Since no answers were provided, I made **defensible, documented assumptions** (see Section 3).
+Since I was asked to make my own judgements about scope and answers, I have mentioned my design choices in section 3.
 
 ### Approaches Considered
 1. **Pure Async Ingestion** (`202 Accepted`):  
@@ -36,7 +36,7 @@ Since no answers were provided, I made **defensible, documented assumptions** (s
 
 ### Intentionally NOT Building
 - Authentication or user management
-- Email/Slack alerting (Discord integration is placeholder)
+- Email/Slack alerting (Discord integration added as a placeholder)
 - Vector search or clustering
 - Multi-language support
 - PII redaction (sanitization only)
@@ -78,7 +78,7 @@ make run
 
 ---
 
-## 3. Assumptions
+## 3. Assumptions and Documentation
 
 | Assumption | Rationale | Uncertainty Flag |
 |-----------|----------|------------------|
@@ -89,6 +89,7 @@ make run
 | **Alerts go to internal team (via Discord)** | MVP for real-time notification | Low – hook replaceable |
 | **Resolved feedback is marked, not deleted** | Supports audit trail; aligns with ticketing norms | Low – deletion can be added later |
 
+[Google doc linked for questions and documentation]([https://docs.google.com/document/d/1e6vvqli-2bZU3KvvohKberdTTHzmPxHCZRZEfmkVEdc/edit?usp=sharing](https://docs.google.com/document/d/1e6vvqli-2bZU3KvvohKberdTTHzmPxHCZRZEfmkVEdc/edit?usp=sharing))
 ---
 
 ## 4. Technical Decisions
