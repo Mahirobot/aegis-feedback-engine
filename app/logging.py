@@ -4,28 +4,28 @@ import sys
 
 def setup_logging():
     """
-    Centralized logging configuration.
-    Configures the root logger and the application specific logger.
+    Configures the root logger for JSON-friendly output (simulated here)
+    and attaches handlers to stdout.
     """
-    # 1. format: "Time - Level - Message"
+    # 1. Define Format
     log_format = logging.Formatter(
-        fmt="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+        fmt="%(asctime)s - %(levelname)s - [%(name)s] - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    # 2. Handler: Stream to stdout (Standard for Containerized apps)
+    # 2. Define Handler (Stream to Console)
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(log_format)
 
-    # 3. Configure the specific app logger
+    # 3. Setup 'aegis' logger
     logger = logging.getLogger("aegis")
     logger.setLevel(logging.INFO)
 
-    # Prevent duplicate logs if re-initialized
+    # Prevent duplicate logs if function is called multiple times
     if not logger.handlers:
         logger.addHandler(console_handler)
 
-    # Optional: Configure Uvicorn logger to match our format
-    logging.getLogger("uvicorn.access").handlers = [console_handler]
+    # 4. Silence noisy libraries if needed
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
     return logger

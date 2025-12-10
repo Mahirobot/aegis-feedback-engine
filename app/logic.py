@@ -1,20 +1,21 @@
 import asyncio
 import json
 import logging
-from typing import Any, Dict
+import re
+from typing import Any, Dict, List
 
-from groq import AsyncGroq
+import httpx
+from groq import AsyncGroq, RateLimitError
+from openai import AsyncOpenAI
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 from app.config import settings
-
-from openai import AsyncOpenAI
+from app.models import TOPIC_TO_DEPT_MAP, AIProvider, Department, Sentiment
 
 logger = logging.getLogger("aegis")
 
-
-# --- GLOBAL CLIENTS ---
-# Initialize once to reuse connections (Best Practice)
+# --- SINGLETON CLIENTS ---
+# Initialize only if keys exist to save resources
 groq_client = (
     AsyncGroq(api_key=settings.GROQ_API_KEY) if settings.GROQ_API_KEY else None
 )
@@ -23,43 +24,64 @@ openai_client = (
 )
 vader_analyzer = SentimentIntensityAnalyzer()
 
+# --- CONCURRENCY CONTROL ---
+# Limit concurrent AI requests to prevent API rate limiting.
+ai_semaphore = asyncio.Semaphore(50)
+
+
+def sanitize_text(text: str) -> str:
+    """
+    Input Sanitization.
+    1. Removes HTML tags to prevent XSS/Prompt Injection.
+    2. Truncates text to 512 chars to bound LLM costs.
+    """
+    clean_text = re.sub(r"<[^>]*>", "", text)
+    return clean_text[:512]
+
+
+def map_topics_to_department(topics: List[str]) -> str:
+    """Matches the first known topic to a Department."""
+    for topic in topics:
+        if topic in TOPIC_TO_DEPT_MAP:
+            return TOPIC_TO_DEPT_MAP[topic]
+    return Department.UNASSIGNED
+
 
 def analyze_heuristic(text: str) -> Dict[str, Any]:
     """
-    Deterministic Fallback: <10ms execution time.
-    Uses VADER for sentiment and Regex for topics.
+    FAST PATH: <10ms Deterministic Analysis.
+    Used when AI is too slow, down, or for initial triage.
     """
-    # 1. Sentiment Analysis (VADER)
-    # compound score ranges from -1 (Extremely Negative) to +1 (Extremely Positive)
+    # 1. Sentiment (VADER)
     scores = vader_analyzer.polarity_scores(text)
     compound = scores["compound"]
 
     if compound >= 0.05:
-        sentiment = "POSITIVE"
+        sentiment = Sentiment.POSITIVE
     elif compound <= -0.05:
-        sentiment = "NEGATIVE"
+        sentiment = Sentiment.NEGATIVE
     else:
-        sentiment = "NEUTRAL"
+        sentiment = Sentiment.NEUTRAL
 
-    # 2. Keyword Topic Extraction (Regex-like)
+    # 2. Topic Extraction (Keyword Regex)
     text_lower = text.lower()
     keywords = {
-        "Billing": [
-            "charge",
-            "credit",
-            "card",
-            "refund",
-            "bill",
-            "invoice",
-            "cost",
-            "pricing",
+        "Billing": ["charge", "credit", "card", "refund", "bill", "invoice", "cost"],
+        "Technical": [
+            "bug",
+            "crash",
+            "error",
+            "fail",
+            "slow",
+            "login",
+            "app",
+            "500",
+            "404",
         ],
-        "Technical": ["bug", "crash", "error", "fail", "slow", "login", "app", "down"],
         "UX": ["ugly", "confusing", "hard", "color", "button", "nav", "interface"],
         "Security": ["password", "hacked", "breach", "suspicious", "auth", "phishing"],
     }
 
-    # Find all matching topics
     topics = [
         topic
         for topic, words in keywords.items()
@@ -69,7 +91,8 @@ def analyze_heuristic(text: str) -> Dict[str, Any]:
         topics.append("General")
 
     # 3. Urgency Detection
-    urgent_keywords = [
+    # Urgent if: Specific danger keywords present OR (Negative Sentiment + High Intensity)
+    danger_keywords = [
         "lawsuit",
         "sue",
         "illegal",
@@ -77,12 +100,10 @@ def analyze_heuristic(text: str) -> Dict[str, Any]:
         "emergency",
         "fraud",
         "police",
-        "danger",
     ]
-    is_urgent = any(w in text_lower for w in urgent_keywords)
+    is_urgent = any(w in text_lower for w in danger_keywords)
 
-    # Escalate urgency if sentiment is extremely negative (e.g., "I hate this!")
-    if sentiment == "NEGATIVE" and compound < -0.6:
+    if sentiment == Sentiment.NEGATIVE and compound < -0.6:
         is_urgent = True
 
     return {
@@ -90,96 +111,160 @@ def analyze_heuristic(text: str) -> Dict[str, Any]:
         "topics": topics,
         "is_urgent": is_urgent,
         "confidence_score": 0.5,
-        "ai_provider": "vader-regex",
+        "ai_provider": AIProvider.VADER,
+    }
+
+
+def validate_llm_response(data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Validates that the LLM returned strict JSON matching our Enums.
+    """
+    # 1. Validate Sentiment
+    valid_sentiments = {s.value for s in Sentiment}
+    sentiment = str(data.get("sentiment", "")).upper()
+    if sentiment not in valid_sentiments:
+        # Graceful fallback to NEUTRAL if LLM hallucinates a new emotion
+        sentiment = Sentiment.NEUTRAL.value
+
+    # 2. Validate Topics
+    topics = data.get("topics", [])
+    if not isinstance(topics, list):
+        topics = ["General"]
+
+    return {
+        "sentiment": sentiment,
+        "topics": topics,
+        "is_urgent": bool(data.get("is_urgent", False)),
     }
 
 
 async def call_llm(text: str) -> Dict[str, Any]:
     """
-    Calls the primary AI provider (Groq) or secondary (OpenAI).
-    Handles mocking if no keys are present.
+    SLOW PATH: Calls external AI APIs.
     """
-    # Mock Mode (If no keys are set in .env)
-    if not groq_client and not openai_client:
-        logger.info("No API keys found. Using Mock LLM mode.")
+    # Mock Mode Check
+    if settings.ENABLE_MOCK_MODE or (not groq_client and not openai_client):
         await asyncio.sleep(0.3)  # Simulate network latency
         result = analyze_heuristic(text)
-        result["ai_provider"] = "mock-llm"
+        result["ai_provider"] = AIProvider.MOCK
         result["confidence_score"] = 0.95
         return result
 
     system_prompt = (
-        "You are a classification engine. Return VALID JSON ONLY. "
+        "You are a sentiment classification engine. Return VALID JSON ONLY. "
         'Schema: {"sentiment": "POSITIVE"|"NEGATIVE"|"NEUTRAL", '
         '"topics": ["Billing", "Technical", "UX", "Security", "General"], '
         '"is_urgent": boolean}'
     )
 
     try:
+        content = ""
+        provider = AIProvider.UNKNOWN
+
+        # Priority 1: Groq (Fastest)
         if groq_client:
             response = await groq_client.chat.completions.create(
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": text},
                 ],
-                model="llama3-8b-8192",
+                model=settings.AI_MODEL_GROQ,
                 response_format={"type": "json_object"},
                 temperature=0,
-                timeout=2.0,
+                timeout=5.0,
             )
-            provider = "groq-llama3"
+            provider = AIProvider.GROQ
             content = response.choices[0].message.content
 
+        # Priority 2: OpenAI (Backup)
         elif openai_client:
             response = await openai_client.chat.completions.create(
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": text},
                 ],
-                model="gpt-4o-mini",
+                model=settings.AI_MODEL_OPENAI,
                 response_format={"type": "json_object"},
                 temperature=0,
             )
-            provider = "openai-gpt4o-mini"
+            provider = AIProvider.OPENAI
             content = response.choices[0].message.content
 
-        # Robust Parsing
-        data = json.loads(content)
+        # Parse & Validate
+        raw_data = json.loads(content)
+        validated = validate_llm_response(raw_data)
 
         return {
-            "sentiment": data.get("sentiment", "NEUTRAL").upper(),
-            "topics": data.get("topics", ["General"]),
-            "is_urgent": data.get("is_urgent", False),
+            **validated,
             "confidence_score": 0.99,
             "ai_provider": provider,
         }
 
+    except RateLimitError as e:
+        logger.warning(f"Rate Limit: {e}")
+        raise e
     except Exception as e:
-        logger.error(f"LLM Provider Failed: {str(e)}")
-        raise e  # Propagate error so the Orchestrator knows to switch to Fallback
+        logger.error(f"LLM Failed: {e}")
+        raise e
 
 
-async def analyze_feedback_hybrid(text: str) -> Dict[str, Any]:
+async def analyze_feedback_hybrid(clean_text: str) -> Dict[str, Any]:
     """
-    Orchestrator: Attempts AI analysis with a hard timeout.
-    Falls back to Heuristic engine if AI is slow or down.
+    THE RACE CONDITION:
+    Races the LLM against a 500ms clock.
+    Returns Heuristic result if LLM times out.
     """
-    # 1. Always prepare the fallback result first (it's cheap)
-    heuristic_result = analyze_heuristic(text)
+    # 1. Always run Heuristic (Fast fallback)
+    heuristic_result = analyze_heuristic(clean_text)
 
-    try:
-        # 2. Race Logic: Try AI, but kill it if it takes too long
-        ai_result = await asyncio.wait_for(
-            call_llm(text), timeout=settings.AI_TIMEOUT_SECONDS
-        )
-        return {**ai_result, "source": "ai"}
+    # 2. Try AI (Protected by Semaphore)
+    async with ai_semaphore:
+        try:
+            # Race logic
+            ai_result = await asyncio.wait_for(
+                call_llm(clean_text), timeout=settings.AI_TIMEOUT_SECONDS
+            )
+            final_result = {**ai_result, "source": "ai"}
 
-    except asyncio.TimeoutError:
-        logger.warning(
-            f"AI Timeout (> {settings.AI_TIMEOUT_SECONDS}s). Using Fallback."
-        )
-        return {**heuristic_result, "source": "fallback"}
+        except asyncio.TimeoutError:
+            logger.warning(
+                f"⚡ AI Timeout (> {settings.AI_TIMEOUT_SECONDS}s). Using VADER."
+            )
+            final_result = {**heuristic_result, "source": "fallback"}
 
-    except Exception as e:
-        logger.error(f"AI Exception. Using Fallback. Error: {e}")
-        return {**heuristic_result, "source": "fallback"}
+        except Exception:
+            # Any other AI failure triggers fallback
+            final_result = {**heuristic_result, "source": "fallback"}
+
+    # 3. Final Polish
+    final_result["department"] = map_topics_to_department(
+        final_result.get("topics", [])
+    )
+
+    return final_result
+
+
+async def trigger_alert(
+    feedback_id: str, content: str, department: str, sentiment: str
+):
+    """
+    Sends alerts for Urgent items.
+    """
+    message = (
+        f"**URGENT FEEDBACK**\n"
+        f"**ID:** `{feedback_id}`\n"
+        f"**Dept:** {department}\n"
+        f"**Sent:** {sentiment}\n"
+        f"**Msg:** {content}"
+    )
+
+    if settings.DISCORD_WEBHOOK_URL:
+        try:
+            async with httpx.AsyncClient() as client:
+                await client.post(
+                    settings.DISCORD_WEBHOOK_URL, json={"content": message}
+                )
+        except Exception as e:
+            logger.error(f"Failed to send Discord alert: {e}")
+    else:
+        logger.critical(f"MOCK ALERT: {message}")

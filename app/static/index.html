@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aegis Feedback Engine</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans">
+    <div class="max-w-7xl mx-auto p-6">
+        
+        <header class="flex justify-between items-center mb-8 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+            <div class="flex items-center gap-4">
+                <div class="bg-blue-600 text-white p-3 rounded-lg shadow-lg">
+                    <i class="fas fa-shield-alt text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold text-slate-900">Aegis Engine</h1>
+                    <p class="text-slate-500 text-sm">Resilient Feedback Analysis & Routing</p>
+                </div>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="runBrowserLoadTest()" id="load-test-btn" class="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors text-sm font-semibold">
+                    <i class="fas fa-bolt text-yellow-400"></i> Run Load Test
+                </button>
+                <span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold flex items-center gap-2 border border-green-200">
+                    <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> ONLINE
+                </span>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                <div class="text-slate-500 text-xs font-bold uppercase tracking-wider">Total Stored</div>
+                <div class="text-3xl font-bold mt-1" id="stat-total">...</div>
+            </div>
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                <div class="text-slate-500 text-xs font-bold uppercase tracking-wider">Duplicates Skipped</div>
+                <div class="text-3xl font-bold mt-1 text-purple-600" id="stat-duplicates">0</div>
+            </div>
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                <div class="text-slate-500 text-xs font-bold uppercase tracking-wider">Urgent Items</div>
+                <div class="text-3xl font-bold mt-1 text-red-600" id="stat-urgent">...</div>
+            </div>
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                <div class="text-slate-500 text-xs font-bold uppercase tracking-wider">Avg Latency</div>
+                <div class="text-3xl font-bold mt-1 text-green-600" id="stat-latency">&lt; 500ms</div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-2 space-y-8">
+                
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <h2 class="text-lg font-bold mb-4 flex items-center gap-2">
+                        <i class="fas fa-paper-plane text-blue-500"></i> Manual Ingest
+                    </h2>
+                    <div class="flex gap-3">
+                        <input type="text" id="feedback-input" 
+                            class="flex-1 p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all" 
+                            placeholder="Type feedback here..." onkeypress="handleEnter(event)">
+                        <button onclick="submitFeedback()" 
+                            class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-bold transition-colors shadow-lg shadow-blue-200">
+                            Analyze
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <h2 class="text-lg font-bold mb-2 flex items-center gap-2">
+                        <i class="fas fa-file-csv text-green-500"></i> Bulk Upload
+                    </h2>
+                    <div class="flex gap-3 items-center">
+                        <input type="file" id="csv-file" accept=".csv" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                        <button onclick="uploadCsv()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap">Upload CSV</button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                        <h2 class="font-bold text-slate-700">Live Feedback Stream</h2>
+                        
+                        <div class="flex gap-2 text-sm">
+                            <button onclick="changePage(-1)" class="text-slate-500 hover:text-blue-600 font-bold px-2"><i class="fas fa-chevron-left"></i></button>
+                            <span id="page-indicator" class="text-slate-400">Page 1</span>
+                            <button onclick="changePage(1)" class="text-slate-500 hover:text-blue-600 font-bold px-2"><i class="fas fa-chevron-right"></i></button>
+                            <button onclick="refreshAll()" class="ml-2 text-blue-600 hover:text-blue-800 font-semibold text-xs"><i class="fas fa-sync-alt"></i> Refresh</button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-50 text-xs uppercase text-slate-500 font-semibold">
+                                <tr>
+                                    <th class="p-4">Sentiment</th>
+                                    <th class="p-4">Content</th>
+                                    <th class="p-4">Route</th>
+                                    <th class="p-4">Source</th>
+                                    <th class="p-4">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="feed-body" class="divide-y divide-slate-100 text-sm">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-6">
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-4 border-b border-slate-100 bg-red-50 flex justify-between items-center">
+                        <h2 class="font-bold text-red-800 flex items-center gap-2"><i class="fas fa-user-shield"></i> Review Queue</h2>
+                        <span id="queue-count" class="bg-white text-red-600 text-xs px-2 py-1 rounded-full font-bold shadow-sm">0</span>
+                    </div>
+                    <div class="p-4 max-h-[400px] overflow-y-auto" id="review-queue"></div>
+                    <div class="p-3 bg-slate-50 border-t border-slate-100 text-center">
+                        <a href="/admin/reviews/csv" class="text-blue-600 text-xs font-bold hover:underline"><i class="fas fa-download mr-1"></i> Download CSV</a>
+                    </div>
+                </div>
+                
+                <div class="bg-slate-800 text-white rounded-xl shadow-lg p-6">
+                    <h3 class="font-bold mb-4 text-slate-200">Admin Controls</h3>
+                    <button onclick="triggerReconcile()" class="w-full mb-3 bg-slate-700 hover:bg-slate-600 text-white p-2 rounded text-sm font-semibold transition flex items-center justify-center gap-2">
+                        <i class="fas fa-robot"></i> Force AI Reconciliation
+                    </button>
+                    <button onclick="downloadDb()" class="w-full bg-slate-700 hover:bg-slate-600 text-white p-2 rounded text-sm font-semibold transition flex items-center justify-center gap-2">
+                        <i class="fas fa-database"></i> View JSON Dump
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = ""; 
+        let currentSkip = 0;
+        const LIMIT = 20;
+        
+        // Track duplicates locally for this session
+        let sessionDuplicates = 0;
+
+        // 1. NAVIGATION
+        function changePage(direction) {
+            const newSkip = currentSkip + (direction * LIMIT);
+            if (newSkip < 0) return;
+            currentSkip = newSkip;
+            fetchFeedback();
+            document.getElementById('page-indicator').innerText = `Page ${(currentSkip/LIMIT) + 1}`;
+        }
+        
+        function refreshAll() {
+            currentSkip = 0;
+            fetchData();
+        }
+
+        // 2. ACTIONS
+        async function markResolved(id, btn) {
+            const note = prompt("Enter a resolution note (optional):");
+            if (note === null) return; 
+
+            try {
+                const res = await fetch(`${API_URL}/feedback/${id}/resolve`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ note: note })
+                });
+                
+                if(res.ok) {
+                    const row = btn.closest('tr');
+                    row.style.opacity = '0';
+                    setTimeout(() => row.remove(), 500); 
+                    fetchStats(); 
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        async function submitFeedback() {
+            const input = document.getElementById('feedback-input');
+            const text = input.value;
+            if (!text) return;
+
+            const start = performance.now();
+            try {
+                const res = await fetch(`${API_URL}/feedback`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ raw_content: text })
+                });
+                
+                // CHECK FOR DUPLICATE
+                if (res.headers.get("X-Status") === "Duplicate") {
+                    sessionDuplicates++;
+                    document.getElementById('stat-duplicates').innerText = sessionDuplicates;
+                }
+                
+                const duration = Math.round(performance.now() - start);
+                document.getElementById('stat-latency').innerText = duration + "ms";
+                input.value = '';
+                fetchData(); 
+            } catch (e) { alert("Error: " + e); }
+        }
+
+        async function uploadCsv() {
+            const fileInput = document.getElementById('csv-file');
+            const file = fileInput.files[0];
+            if (!file) return alert("Select a file first.");
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            try {
+                const res = await fetch(`${API_URL}/feedback/batch_csv`, { method: 'POST', body: formData });
+                const data = await res.json();
+                alert(data.message);
+                fileInput.value = '';
+                setTimeout(fetchData, 2000); 
+            } catch (e) { alert("Upload failed"); }
+        }
+
+        async function runBrowserLoadTest() {
+            const btn = document.getElementById('load-test-btn');
+            const originalContent = btn.innerHTML;
+            
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin text-white"></i> Loading Scenarios...';
+            
+            let scenarios = [];
+
+            try {
+                const response = await fetch('static/scenarios.txt');
+                if (!response.ok) throw new Error("Failed to load scenarios.txt");
+                const text = await response.text();
+                scenarios = text.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+            } catch (e) {
+                console.error(e);
+                alert("Could not load scenarios.txt. Using defaults.");
+                scenarios = ["The billing page is broken.", "I love this app!", "System crashed..."]; 
+            }
+
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin text-white"></i> Swarming (120 reqs)...';
+            
+            const TOTAL = 120; 
+            const startTime = performance.now();
+            let promises = [];
+            
+            for (let i = 0; i < TOTAL; i++) {
+                const baseText = scenarios[Math.floor(Math.random() * scenarios.length)];
+                
+                const p = fetch(`${API_URL}/feedback`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ raw_content: baseText })
+                }).then(res => {
+                    // CHECK FOR DUPLICATE
+                    if (res.headers.get("X-Status") === "Duplicate") {
+                        sessionDuplicates++;
+                        document.getElementById('stat-duplicates').innerText = sessionDuplicates;
+                    }
+                    return res.ok ? 1 : 0;
+                }).catch(() => 0);
+                
+                promises.push(p);
+            }
+
+            const results = await Promise.all(promises);
+            
+            const durationSec = (performance.now() - startTime) / 1000;
+            const rpm = Math.round((TOTAL / durationSec) * 60);
+
+            btn.innerHTML = `<i class="fas fa-check"></i> Done! (${rpm} RPM)`;
+            btn.classList.remove('bg-slate-800');
+            btn.classList.add('bg-green-600');
+            
+            fetchData();
+            
+            setTimeout(() => {
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+                btn.classList.add('bg-slate-800');
+                btn.classList.remove('bg-green-600');
+            }, 4000);
+        }
+
+        // 3. FETCHING
+        async function fetchData() {
+            await Promise.all([fetchFeedback(), fetchStats(), fetchReviews()]);
+        }
+
+        async function fetchFeedback() {
+            try {
+                const res = await fetch(`${API_URL}/feedback?limit=${LIMIT}&skip=${currentSkip}`);
+                const data = await res.json();
+                renderTable(data);
+            } catch(e) { console.error(e); }
+        }
+
+        async function fetchStats() {
+            const res = await fetch(`${API_URL}/admin/stats`);
+            const data = await res.json();
+            document.getElementById('stat-total').innerText = data.total;
+            document.getElementById('stat-urgent').innerText = data.urgent;
+            // Duplicates are updated locally by the session variable
+        }
+
+        async function fetchReviews() {
+            const res = await fetch(`${API_URL}/admin/reviews`);
+            const data = await res.json();
+            const container = document.getElementById('review-queue');
+            document.getElementById('queue-count').innerText = data.length;
+            
+            if (data.length === 0) {
+                container.innerHTML = '<div class="text-center py-8"><p class="text-slate-400 text-xs">Queue Clear</p></div>';
+                return;
+            }
+            container.innerHTML = data.map(item => `
+                <div class="mb-3 p-3 bg-white border-l-4 border-red-500 shadow-sm rounded-r">
+                    <div class="flex justify-between items-start mb-1">
+                        <span class="text-xs font-bold text-red-600">REVIEW NEEDED</span>
+                        <span class="text-[10px] text-slate-400 font-mono">${item.id.substring(0,6)}</span>
+                    </div>
+                    <p class="text-slate-700 text-sm mb-2 line-clamp-2">"${item.raw_content}"</p>
+                    <div class="flex gap-2">
+                         <span class="px-1.5 py-0.5 bg-slate-100 text-slate-600 text-[10px] rounded font-bold">Src: ${item.source}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('feed-body');
+            tbody.innerHTML = data.map(item => `
+                <tr class="fade-in hover:bg-slate-50 transition-colors border-b border-slate-50 ${item.status === 'Resolved' ? 'hidden' : ''}">
+                    <td class="p-4">
+                        <span class="px-2 py-1 rounded text-xs font-bold ${getSentimentColor(item.sentiment)} border border-opacity-20">
+                            ${item.sentiment}
+                        </span>
+                        ${item.is_urgent ? '<span class="ml-2 text-red-600 animate-pulse"><i class="fas fa-exclamation-circle"></i></span>' : ''}
+                    </td>
+                    <td class="p-4 font-medium text-slate-700 truncate max-w-xs" title="${item.raw_content}">
+                        ${item.raw_content.substring(0,50)}
+                    </td>
+                    <td class="p-4 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                        ${item.department}
+                    </td>
+                    <td class="p-4">
+                        <span class="text-xs font-mono px-2 py-1 rounded ${item.source === 'ai' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}">
+                            ${item.source}
+                        </span>
+                    </td>
+                    <td class="p-4">
+                        <button onclick="markResolved('${item.id}', this)" class="text-xs bg-white border border-slate-200 hover:bg-green-50 text-slate-600 hover:text-green-600 px-2 py-1 rounded shadow-sm">
+                            <i class="fas fa-check"></i> Done
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function getSentimentColor(s) {
+            if (s === 'POSITIVE') return 'bg-green-100 text-green-700 border-green-200';
+            if (s === 'NEGATIVE') return 'bg-red-100 text-red-700 border-red-200';
+            return 'bg-slate-100 text-slate-700 border-slate-200';
+        }
+
+        // Init
+        function handleEnter(e) { if (e.key === 'Enter') submitFeedback(); }
+        function triggerReconcile() { fetch(`${API_URL}/admin/reconcile`, { method: 'POST' }); alert("Triggered!"); }
+        function downloadDb() { window.location.href = `${API_URL}/feedback`; }
+        
+        fetchData();
+        setInterval(fetchData, 4000); 
+    </script>
+</body>
+</html>
